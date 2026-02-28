@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vibes Picker</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f0f0f; --surface: #1a1a1a; --surface2: #252525; --border: #333;
+    --text: #e8e8e8; --text2: #999; --accent: #7c5cfc; --accent2: #9b7dff;
+    --danger: #e74c3c; --success: #2ecc71; --radius: 8px;
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  a { color: var(--accent2); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  button { cursor: pointer; font-family: inherit; }
+
+  .container { max-width: 800px; margin: 0 auto; padding: 24px 16px; }
+  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; }
+  header h1 { font-size: 28px; font-weight: 700; }
+  header h1 span { color: var(--accent2); }
+
+  .gear-btn { background: none; border: none; color: var(--text2); font-size: 22px; padding: 8px; border-radius: var(--radius); transition: color 0.2s; }
+  .gear-btn:hover { color: var(--text); }
+
+  /* Modal */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 28px; width: 90%; max-width: 480px; }
+  .modal h2 { margin-bottom: 20px; font-size: 20px; }
+  .modal label { display: block; font-size: 13px; color: var(--text2); margin-bottom: 4px; margin-top: 16px; }
+  .modal input { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface2); color: var(--text); font-size: 14px; }
+  .modal input:focus { outline: none; border-color: var(--accent); }
+  .modal-actions { display: flex; gap: 12px; margin-top: 24px; justify-content: flex-end; }
+  .btn { padding: 10px 20px; border: none; border-radius: var(--radius); font-size: 14px; font-weight: 500; transition: background 0.2s; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent2); }
+  .btn-ghost { background: transparent; color: var(--text2); border: 1px solid var(--border); }
+  .btn-ghost:hover { color: var(--text); border-color: var(--text2); }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-danger:hover { background: #c0392b; }
+
+  /* Provider toggle */
+  .provider-toggle { display: flex; gap: 0; margin-top: 6px; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); }
+  .provider-btn { flex: 1; padding: 10px; background: var(--surface2); color: var(--text2); border: none; font-size: 13px; font-weight: 500; transition: all 0.2s; }
+  .provider-btn.active { background: var(--accent); color: #fff; }
+  .provider-btn:hover:not(.active) { color: var(--text); }
+
+  /* Setup prompt */
+  .setup-prompt { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; text-align: center; }
+  .setup-prompt p { color: var(--text2); margin: 8px 0 16px; font-size: 14px; }
+
+  /* Username input */
+  .username-section { margin-bottom: 24px; }
+  .username-row { display: flex; gap: 8px; }
+  .username-row input { flex: 1; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); font-size: 15px; }
+  .username-row input:focus { outline: none; border-color: var(--accent); }
+  .loaded-info { display: flex; align-items: center; gap: 12px; margin-top: 12px; font-size: 13px; color: var(--text2); }
+  .loaded-info .count { color: var(--success); font-weight: 600; }
+
+  /* Progress */
+  .progress-section { margin: 20px 0; }
+  .progress-bar-container { width: 100%; height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; margin-top: 8px; }
+  .progress-bar { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.3s; width: 0%; }
+  .progress-text { font-size: 13px; color: var(--text2); margin-top: 6px; }
+  .progress-status { font-size: 14px; color: var(--text); }
+
+  /* Query section */
+  .query-section { margin-top: 24px; }
+  .query-section textarea { width: 100%; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); font-size: 15px; resize: vertical; min-height: 60px; font-family: inherit; }
+  .query-section textarea:focus { outline: none; border-color: var(--accent); }
+  .query-actions { display: flex; gap: 8px; margin-top: 10px; }
+  .examples { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .example-chip { padding: 6px 12px; border: 1px solid var(--border); border-radius: 20px; font-size: 12px; color: var(--text2); background: var(--surface); cursor: pointer; transition: all 0.2s; }
+  .example-chip:hover { border-color: var(--accent); color: var(--text); }
+
+  /* Results */
+  .results-section { margin-top: 24px; }
+  .results-meta { font-size: 13px; color: var(--text2); margin-bottom: 16px; }
+  .film-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 16px; display: flex; gap: 16px; }
+  .film-card img { width: 120px; height: 180px; object-fit: cover; border-radius: var(--radius); flex-shrink: 0; }
+  .film-card .no-poster { width: 120px; height: 180px; background: var(--surface2); border-radius: var(--radius); flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: var(--text2); font-size: 12px; }
+  .film-info { flex: 1; min-width: 0; }
+  .film-info h3 { font-size: 18px; margin-bottom: 6px; }
+  .film-meta { font-size: 13px; color: var(--text2); margin-bottom: 8px; line-height: 1.6; }
+  .film-meta span { white-space: nowrap; }
+  .film-meta span::after { content: ' · '; }
+  .film-meta span:last-child::after { content: ''; }
+  .film-desc { font-size: 13px; color: var(--text2); line-height: 1.5; margin-bottom: 10px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .film-links { font-size: 13px; margin-bottom: 10px; }
+  .film-reason { margin-top: 8px; }
+  .film-reason summary { font-size: 13px; color: var(--accent2); cursor: pointer; }
+  .film-reason p { font-size: 13px; color: var(--text2); margin-top: 6px; line-height: 1.5; }
+
+  .error-msg { background: rgba(231,76,60,0.1); border: 1px solid var(--danger); border-radius: var(--radius); padding: 12px 16px; color: var(--danger); font-size: 14px; margin: 12px 0; }
+  .info-msg { background: rgba(46,204,113,0.1); border: 1px solid var(--success); border-radius: var(--radius); padding: 12px 16px; color: var(--success); font-size: 14px; margin: 12px 0; }
+  .hidden { display: none !important; }
+  .loading-spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; margin-right: 8px; vertical-align: middle; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 600px) {
+    .film-card { flex-direction: column; align-items: center; text-align: center; }
+    .film-card img, .film-card .no-poster { width: 140px; height: 210px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>🎬 <span>Vibes</span> Picker</h1>
+    <button class="gear-btn" onclick="openSettings()" title="Settings">⚙️</button>
+  </header>
+
+  <!-- Settings Modal -->
+  <div class="modal-overlay" id="settingsModal">
+    <div class="modal">
+      <h2>Settings</h2>
+      <label>AI Provider</label>
+      <div class="provider-toggle">
+        <button class="provider-btn active" id="providerGemini" onclick="selectProvider('gemini')">Gemini (Free)</button>
+        <button class="provider-btn" id="providerClaude" onclick="selectProvider('claude')">Claude (Paid)</button>
+      </div>
+      <div id="claudeKeySection" class="hidden" style="margin-top:4px">
+        <label for="anthropicKey">Anthropic API Key</label>
+        <input id="anthropicKey" type="password" placeholder="sk-ant-...">
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-danger" onclick="clearAllData()">Clear All Data</button>
+        <div style="flex:1"></div>
+        <button class="btn btn-ghost" onclick="closeSettings()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveSettings()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Setup Prompt (shown when keys missing) -->
+  <div id="setupPrompt" class="setup-prompt hidden">
+    <p>You're set to use <strong>Claude</strong> but haven't added an API key yet. Either switch to Gemini (free) or add your <a href="https://console.anthropic.com/" target="_blank">Anthropic API key</a>.</p>
+    <button class="btn btn-primary" onclick="openSettings()">Open Settings</button>
+  </div>
+
+  <!-- Main App (hidden until keys are set) -->
+  <div id="mainApp" class="hidden">
+    <div class="username-section">
+      <div class="username-row">
+        <input id="usernameInput" type="text" placeholder="Letterboxd username (e.g. badnewsbear95)">
+        <button class="btn btn-primary" id="loadBtn" onclick="loadWatchlist()">Load</button>
+      </div>
+      <div class="loaded-info hidden" id="loadedInfo">
+        <span class="count" id="filmCount">0</span> films loaded
+        <span>·</span>
+        <span id="lastLoaded"></span>
+        <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;margin-left:auto" onclick="refreshWatchlist()">Refresh</button>
+      </div>
+    </div>
+
+    <div class="progress-section hidden" id="progressSection">
+      <div class="progress-status" id="progressStatus"></div>
+      <div class="progress-bar-container"><div class="progress-bar" id="progressBar"></div></div>
+      <div class="progress-text" id="progressText"></div>
+    </div>
+
+    <div id="errorArea"></div>
+
+    <div class="query-section hidden" id="querySection">
+      <textarea id="queryInput" placeholder="Describe what you're in the mood for..." rows="2"></textarea>
+      <div class="query-actions">
+        <button class="btn btn-primary" id="findBtn" onclick="findFilms()">Find Films</button>
+      </div>
+      <div class="examples">
+        <span class="example-chip" onclick="useExample(this)">A slow, contemplative film</span>
+        <span class="example-chip" onclick="useExample(this)">Something funny but smart</span>
+        <span class="example-chip" onclick="useExample(this)">Scary 90s film, no subs</span>
+        <span class="example-chip" onclick="useExample(this)">Under 90 minutes</span>
+        <span class="example-chip" onclick="useExample(this)">Asian director, visually stunning</span>
+      </div>
+    </div>
+
+    <div class="results-section hidden" id="resultsSection">
+      <div class="results-meta" id="resultsMeta"></div>
+      <div id="resultsCards"></div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { pipeline } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.4.1/dist/transformers.min.js';
+
+const WORKER_URL = 'https://vibes-scraper.ade71193.workers.dev';
+const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
+const DB_NAME = 'vibesPicker';
+const DB_VERSION = 1;
+
+// ── IndexedDB ──
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains('films')) db.createObjectStore('films', { keyPath: 'slug' });
+      if (!db.objectStoreNames.contains('embeddings')) db.createObjectStore('embeddings', { keyPath: 'slug' });
+      if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta', { keyPath: 'key' });
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function dbPut(db, store, data) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readwrite');
+    tx.objectStore(store).put(data);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+function dbGetAll(db, store) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readonly');
+    const req = tx.objectStore(store).getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function dbGet(db, store, key) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readonly');
+    const req = tx.objectStore(store).get(key);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function dbDelete(db, store, key) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readwrite');
+    tx.objectStore(store).delete(key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+function dbClear(db, store) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readwrite');
+    tx.objectStore(store).clear();
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+// ── State ──
+
+let db = null;
+let films = [];
+let embeddingsMap = {};
+let embeddingPipeline = null;
+
+// ── Settings ──
+
+function getProvider() {
+  return localStorage.getItem('vp_ai_provider') || 'gemini';
+}
+
+function getAnthropicKey() {
+  return localStorage.getItem('vp_anthropic_key') || '';
+}
+
+function hasKeys() {
+  if (getProvider() === 'claude') return getAnthropicKey().length > 0;
+  return true;
+}
+
+window.selectProvider = (provider) => {
+  document.getElementById('providerGemini').classList.toggle('active', provider === 'gemini');
+  document.getElementById('providerClaude').classList.toggle('active', provider === 'claude');
+  document.getElementById('claudeKeySection').classList.toggle('hidden', provider !== 'claude');
+  document.getElementById('settingsModal').dataset.provider = provider;
+};
+
+window.openSettings = () => {
+  const provider = getProvider();
+  window.selectProvider(provider);
+  document.getElementById('anthropicKey').value = getAnthropicKey();
+  document.getElementById('settingsModal').classList.add('open');
+};
+
+window.closeSettings = () => {
+  document.getElementById('settingsModal').classList.remove('open');
+};
+
+window.saveSettings = () => {
+  const provider = document.getElementById('settingsModal').dataset.provider || 'gemini';
+  localStorage.setItem('vp_ai_provider', provider);
+  if (provider === 'claude') {
+    const key = document.getElementById('anthropicKey').value.trim();
+    if (key) localStorage.setItem('vp_anthropic_key', key);
+  }
+  window.closeSettings();
+  checkSetup();
+};
+
+window.clearAllData = async () => {
+  if (!confirm('This will delete all cached films, embeddings, and settings. Continue?')) return;
+  localStorage.removeItem('vp_ai_provider');
+  localStorage.removeItem('vp_anthropic_key');
+  if (db) {
+    await dbClear(db, 'films');
+    await dbClear(db, 'embeddings');
+    await dbClear(db, 'meta');
+  }
+  films = [];
+  embeddingsMap = {};
+  window.closeSettings();
+  checkSetup();
+};
+
+// ── Progress UI ──
+
+function showProgress(status, pct, detail) {
+  const sec = document.getElementById('progressSection');
+  sec.classList.remove('hidden');
+  document.getElementById('progressStatus').innerHTML = status;
+  document.getElementById('progressBar').style.width = pct + '%';
+  document.getElementById('progressText').textContent = detail || '';
+}
+
+function hideProgress() {
+  document.getElementById('progressSection').classList.add('hidden');
+}
+
+function showError(msg) {
+  document.getElementById('errorArea').innerHTML = `<div class="error-msg">${msg}</div>`;
+}
+
+function showInfo(msg) {
+  document.getElementById('errorArea').innerHTML = `<div class="info-msg">${msg}</div>`;
+}
+
+function clearError() {
+  document.getElementById('errorArea').innerHTML = '';
+}
+
+// ── Scraper ──
+
+async function scrapeWatchlist(username) {
+  const allFilms = [];
+  let page = 1;
+  let hasNext = true;
+
+  while (hasNext) {
+    showProgress(
+      `<span class="loading-spinner"></span>Scraping watchlist...`,
+      0, `Page ${page}`
+    );
+    const res = await fetch(`${WORKER_URL}?user=${encodeURIComponent(username)}&page=${page}`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `Scraper returned ${res.status}`);
+    }
+    const data = await res.json();
+    if (!data.films.length) break;
+    allFilms.push(...data.films);
+    hasNext = data.has_next;
+    page++;
+  }
+
+  // Deduplicate
+  const seen = new Set();
+  return allFilms.filter(f => {
+    if (seen.has(f.slug)) return false;
+    seen.add(f.slug);
+    return true;
+  });
+}
+
+// ── TMDB (proxied through Worker) ──
+
+async function searchTMDB(title, year) {
+  const params = `query=${encodeURIComponent(title)}${year ? `&year=${year}` : ''}`;
+  const res = await fetch(`${WORKER_URL}/tmdb/search/movie?${params}`);
+  if (!res.ok) return null;
+  const data = await res.json();
+  const results = data.results || [];
+  if (!results.length) return null;
+  if (year) {
+    const exact = results.find(r => (r.release_date || '').startsWith(String(year)));
+    if (exact) return exact;
+  }
+  return results[0];
+}
+
+async function getTMDBDetails(tmdbId) {
+  const res = await fetch(`${WORKER_URL}/tmdb/movie/${tmdbId}?append_to_response=credits`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
+function extractFilmData(slug, details) {
+  const credits = details.credits || {};
+  const crew = credits.crew || [];
+  const directors = crew.filter(p => p.job === 'Director').map(p => p.name);
+  const genres = (details.genres || []).map(g => g.name);
+  const countries = (details.production_countries || []).map(c => c.name);
+  const releaseDate = details.release_date || '';
+  const releaseYear = releaseDate.length >= 4 ? parseInt(releaseDate.substring(0, 4)) : null;
+  const name = details.title || '';
+  const director = directors.join(', ');
+  const genre = genres.join(', ');
+  const desc = details.overview || '';
+
+  let fullSummary = `${name} (${releaseYear || 'unknown'}) directed by ${director || 'unknown'}.`;
+  if (genre) fullSummary += ` Genre: ${genre}.`;
+  if (desc) fullSummary += ` ${desc}`;
+
+  return {
+    slug,
+    title: name,
+    original_name: details.original_title || null,
+    release_year: releaseYear,
+    film_length: details.runtime || 0,
+    director,
+    desc,
+    genre,
+    country: countries.join(', '),
+    language: details.original_language || '',
+    letterboxd_url: `https://letterboxd.com/film/${slug}/`,
+    poster_url: details.poster_path ? `https://image.tmdb.org/t/p/w500${details.poster_path}` : '',
+    tmdb_id: details.id,
+    full_summary: fullSummary,
+  };
+}
+
+async function enrichOneFilm(f) {
+  try {
+    const searchResult = await searchTMDB(f.title, f.year);
+    if (!searchResult) return null;
+    const details = await getTMDBDetails(searchResult.id);
+    if (!details) return null;
+    const filmData = extractFilmData(f.slug, details);
+    await dbPut(db, 'films', filmData);
+    return filmData;
+  } catch (e) {
+    console.warn(`Failed to enrich ${f.slug}:`, e);
+    return null;
+  }
+}
+
+async function enrichFilms(scrapedFilms, existingSlugs) {
+  const BATCH_SIZE = 6;
+  const newFilms = scrapedFilms.filter(f => !existingSlugs.has(f.slug));
+  if (!newFilms.length) return [];
+
+  const results = [];
+  for (let i = 0; i < newFilms.length; i += BATCH_SIZE) {
+    const batch = newFilms.slice(i, i + BATCH_SIZE);
+    const done = Math.min(i + BATCH_SIZE, newFilms.length);
+    const pct = Math.round((done / newFilms.length) * 100);
+    showProgress(
+      `<span class="loading-spinner"></span>Fetching film details from TMDB...`,
+      pct, `${done}/${newFilms.length}`
+    );
+
+    const batchResults = await Promise.all(batch.map(enrichOneFilm));
+    for (const r of batchResults) {
+      if (r) results.push(r);
+    }
+  }
+
+  return results;
+}
+
+// ── Embeddings ──
+
+async function getEmbeddingPipeline() {
+  if (!embeddingPipeline) {
+    showProgress('<span class="loading-spinner"></span>Loading embedding model (first time ~30MB)...', 0, 'This is cached after first load');
+    embeddingPipeline = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {
+      dtype: 'fp32',
+    });
+  }
+  return embeddingPipeline;
+}
+
+async function buildEmbeddings(filmList) {
+  const existingEmbeddings = await dbGetAll(db, 'embeddings');
+  const existingSlugs = new Set(existingEmbeddings.map(e => e.slug));
+  const needsEmbedding = filmList.filter(f => !existingSlugs.has(f.slug));
+
+  if (!needsEmbedding.length) {
+    // Load existing into memory
+    for (const e of existingEmbeddings) {
+      embeddingsMap[e.slug] = e.vector;
+    }
+    return;
+  }
+
+  const pipe = await getEmbeddingPipeline();
+
+  for (let i = 0; i < needsEmbedding.length; i++) {
+    const f = needsEmbedding[i];
+    const pct = Math.round(((i + 1) / needsEmbedding.length) * 100);
+    showProgress(
+      `<span class="loading-spinner"></span>Computing embeddings...`,
+      pct, `${i + 1}/${needsEmbedding.length}: ${f.title}`
+    );
+
+    const output = await pipe(f.full_summary || f.title, { pooling: 'mean', normalize: true });
+    const vector = Array.from(output.data);
+    await dbPut(db, 'embeddings', { slug: f.slug, vector });
+    embeddingsMap[f.slug] = vector;
+  }
+
+  // Load any pre-existing ones too
+  for (const e of existingEmbeddings) {
+    if (!embeddingsMap[e.slug]) embeddingsMap[e.slug] = e.vector;
+  }
+}
+
+function cosineSimilarity(a, b) {
+  let dot = 0, normA = 0, normB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+  return dot / (Math.sqrt(normA) * Math.sqrt(normB) || 1);
+}
+
+async function vectorSearch(query, topK = 15) {
+  const pipe = await getEmbeddingPipeline();
+  const output = await pipe(query, { pooling: 'mean', normalize: true });
+  const queryVec = Array.from(output.data);
+
+  const scores = [];
+  for (const [slug, vec] of Object.entries(embeddingsMap)) {
+    scores.push({ slug, score: cosineSimilarity(queryVec, vec) });
+  }
+  scores.sort((a, b) => b.score - a.score);
+  return scores.slice(0, topK);
+}
+
+// ── LLM APIs ──
+
+async function callClaude(model, systemPrompt, userMessage, maxTokens = 1000) {
+  const key = getAnthropicKey();
+  const res = await fetch(ANTHROPIC_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: maxTokens,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userMessage }],
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || `Claude API returned ${res.status}`);
+  }
+
+  const data = await res.json();
+  let text = data.content[0].text.trim();
+  if (text.startsWith('```')) {
+    const lines = text.split('\n');
+    text = lines.slice(1, -1).join('\n');
+  }
+  return text;
+}
+
+async function callGemini(systemPrompt, userMessage, maxTokens = 1000) {
+  const res = await fetch(`${WORKER_URL}/gemini`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      system: systemPrompt,
+      message: userMessage,
+      maxTokens,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || err.error || `Gemini API returned ${res.status}`);
+  }
+
+  const data = await res.json();
+  let text = (data.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
+  if (text.startsWith('```')) {
+    const lines = text.split('\n');
+    text = lines.slice(1, -1).join('\n');
+  }
+  return text;
+}
+
+async function callLLM(role, systemPrompt, userMessage, maxTokens = 1000) {
+  if (getProvider() === 'claude') {
+    const model = role === 'analyze' ? 'claude-haiku-4-5-20251001' : 'claude-sonnet-4-5';
+    return callClaude(model, systemPrompt, userMessage, maxTokens);
+  }
+  return callGemini(systemPrompt, userMessage, maxTokens);
+}
+
+// ── Query Analyzer ──
+
+const QUERY_SYSTEM_PROMPT = `You are a query analyzer for a film recommendation system. Your job is to parse a user's natural language request into structured filters and a vibe description.
+
+You must respond with ONLY a valid JSON object (no markdown, no explanation) matching this schema:
+
+{
+  "year_min": int or null,
+  "year_max": int or null,
+  "language": "ISO 639-1 code" or null,
+  "genres_include": ["Genre1", "Genre2"] or [],
+  "genres_exclude": ["Genre1"] or [],
+  "countries_include": ["Country1", "Country2"] or [],
+  "max_runtime": int (minutes) or null,
+  "directors": ["Name"] or [],
+  "vibe_description": "a rich description of the mood/tone/feel the user wants"
+}
+
+Rules:
+- "no subs" or "in English" → language: "en"
+- "short film" or "under 90 min" → max_runtime: 90
+- Decade references: "80s" → year_min: 1980, year_max: 1989
+- "old film" without specifics → year_max: 1970
+- "recent" or "modern" → year_min: 2010
+- Regional references should map to countries:
+  - "Asian" → countries_include: ["Japan", "South Korea", "China", "Hong Kong", "Taiwan", "India", "Thailand", "Philippines", "Vietnam", "Indonesia"]
+  - "European" → countries_include: ["France", "Germany", "Italy", "Spain", "United Kingdom", "Sweden", "Denmark", "Norway", "Poland", "Czech Republic"]
+  - "Latin American" → countries_include: ["Mexico", "Brazil", "Argentina", "Colombia", "Chile", "Peru"]
+  - "African" → countries_include: ["Nigeria", "South Africa", "Kenya", "Senegal", "Ethiopia"]
+  - Specific country references: "French film" → countries_include: ["France"], "Korean" → countries_include: ["South Korea"], etc.
+- The vibe_description should capture the emotional/tonal qualities the user wants, expanding on their request with related descriptors.
+- If a field is not mentioned or implied, set it to null or empty.
+
+Available genres (use exact names): Action, Adventure, Animation, Comedy, Crime, Documentary, Drama, Family, Fantasy, History, Horror, Music, Mystery, Romance, Science Fiction, TV Movie, Thriller, War, Western
+
+Available language codes: en, fr, ja, ko, de, es, it, zh, hi, pt, ru, sv, da, fi, no, pl, tr, ar, th, fa`;
+
+async function analyzeQuery(query) {
+  try {
+    const text = await callLLM('analyze', QUERY_SYSTEM_PROMPT, query, 500);
+    return JSON.parse(text);
+  } catch {
+    return { year_min: null, year_max: null, language: null, genres_include: [], genres_exclude: [], countries_include: [], max_runtime: null, directors: [], vibe_description: query };
+  }
+}
+
+// ── Film Filtering (replaces SQL) ──
+
+function filterFilms(filmList, filters) {
+  return filmList.filter(f => {
+    if (filters.year_min && (f.release_year || 0) < filters.year_min) return false;
+    if (filters.year_max && (f.release_year || 9999) > filters.year_max) return false;
+    if (filters.language && f.language !== filters.language) return false;
+    if (filters.max_runtime && (f.film_length || 9999) > filters.max_runtime) return false;
+    if (filters.genres_include?.length) {
+      const fg = (f.genre || '').toLowerCase();
+      if (!filters.genres_include.some(g => fg.includes(g.toLowerCase()))) return false;
+    }
+    if (filters.genres_exclude?.length) {
+      const fg = (f.genre || '').toLowerCase();
+      if (filters.genres_exclude.some(g => fg.includes(g.toLowerCase()))) return false;
+    }
+    if (filters.countries_include?.length) {
+      const fc = (f.country || '').toLowerCase();
+      if (!filters.countries_include.some(c => fc.includes(c.toLowerCase()))) return false;
+    }
+    if (filters.directors?.length) {
+      const fd = (f.director || '').toLowerCase();
+      if (!filters.directors.some(d => fd.includes(d.toLowerCase()))) return false;
+    }
+    return true;
+  });
+}
+
+// ── Recommender ──
+
+const RECOMMENDATION_PROMPT = `You are a film recommendation assistant. The user is looking for a film to watch from their personal watchlist. Based on their request and the candidate films below, pick the best 3 films that match what they're looking for.
+
+For each pick, respond with ONLY a JSON array (no markdown, no extra text). Each element must have "slug" (the film's slug from the candidate data) and "reason" (1-2 sentences explaining why this film matches the request).
+
+If fewer than 3 candidates are good matches, only include what fits. Never recommend a film that clearly contradicts the user's request.`;
+
+function formatCandidate(f) {
+  let s = `Slug: ${f.slug}\nTitle: ${f.title}`;
+  if (f.release_year) s += `\nYear: ${f.release_year}`;
+  if (f.director) s += `\nDirector: ${f.director}`;
+  if (f.genre) s += `\nGenre: ${f.genre}`;
+  if (f.language) s += `\nLanguage: ${f.language}`;
+  if (f.film_length) s += `\nRuntime: ${f.film_length} min`;
+  if (f.country) s += `\nCountry: ${f.country}`;
+  if (f.desc) s += `\nDescription: ${f.desc}`;
+  return s;
+}
+
+async function recommend(query) {
+  showProgress('<span class="loading-spinner"></span>Analyzing your request...', 20, '');
+
+  const filters = await analyzeQuery(query);
+  console.log('Query filters:', filters);
+
+  const sqlFilms = filterFilms(films, filters);
+  const sqlSlugs = new Set(sqlFilms.map(f => f.slug));
+
+  showProgress('<span class="loading-spinner"></span>Searching by vibe...', 40, '');
+  const vibe = filters.vibe_description || query;
+  const vectorResults = await vectorSearch(vibe);
+
+  // Merge and score
+  const filmMap = Object.fromEntries(films.map(f => [f.slug, f]));
+  const scored = {};
+
+  for (const f of sqlFilms) {
+    scored[f.slug] = { film: f, score: 1.0, sources: ['filter'] };
+  }
+  for (const { slug, score } of vectorResults) {
+    if (scored[slug]) {
+      scored[slug].score += score;
+      scored[slug].sources.push('vibe');
+    } else if (filmMap[slug]) {
+      scored[slug] = { film: filmMap[slug], score, sources: ['vibe'] };
+    }
+  }
+
+  const sorted = Object.values(scored).sort((a, b) => b.score - a.score);
+  const top = sorted.slice(0, 12);
+
+  if (!top.length) {
+    hideProgress();
+    return { picks: [], filters, sql_count: sqlFilms.length, vector_count: vectorResults.length, total: 0 };
+  }
+
+  showProgress('<span class="loading-spinner"></span>Picking the best films...', 70, '');
+  const candidateText = top.map(c => formatCandidate(c.film)).join('\n\n---\n\n');
+  const llmResponse = await callLLM(
+    'recommend',
+    RECOMMENDATION_PROMPT,
+    `My request: ${query}\n\nHere are the candidate films from my watchlist:\n\n${candidateText}`,
+    1000
+  );
+
+  let picks = [];
+  try {
+    const raw = JSON.parse(llmResponse);
+    picks = raw.map(p => ({ film: filmMap[p.slug], reason: p.reason })).filter(p => p.film);
+  } catch { /* fallback: no picks */ }
+
+  hideProgress();
+  return { picks, filters, sql_count: sqlFilms.length, vector_count: vectorResults.length, total: Object.keys(scored).length };
+}
+
+// ── UI ──
+
+function renderFilmCard(pick, idx) {
+  const f = pick.film;
+  const poster = f.poster_url
+    ? `<img src="${f.poster_url}" alt="${f.title}" loading="lazy">`
+    : `<div class="no-poster">No poster</div>`;
+
+  const meta = [
+    f.director && `<span>${f.director}</span>`,
+    f.genre && `<span>${f.genre}</span>`,
+    f.film_length && `<span>${f.film_length} min</span>`,
+    f.country && `<span>${f.country}</span>`,
+  ].filter(Boolean).join('');
+
+  return `<div class="film-card">
+    ${poster}
+    <div class="film-info">
+      <h3>${idx}. ${f.title} (${f.release_year || '?'})</h3>
+      <div class="film-meta">${meta}</div>
+      ${f.desc ? `<div class="film-desc">${f.desc}</div>` : ''}
+      <div class="film-links">
+        ${f.letterboxd_url ? `<a href="${f.letterboxd_url}" target="_blank">View on Letterboxd</a>` : ''}
+      </div>
+      <details class="film-reason"><summary>Why this pick?</summary><p>${pick.reason}</p></details>
+    </div>
+  </div>`;
+}
+
+// ── Main Flow ──
+
+function checkSetup() {
+  const ready = hasKeys();
+  document.getElementById('setupPrompt').classList.toggle('hidden', ready);
+  document.getElementById('mainApp').classList.toggle('hidden', !ready);
+  if (ready) tryLoadCached();
+}
+
+async function tryLoadCached() {
+  const meta = await dbGet(db, 'meta', 'session');
+  if (meta?.username) {
+    document.getElementById('usernameInput').value = meta.username;
+    films = await dbGetAll(db, 'films');
+    if (films.length > 0) {
+      const allEmbeddings = await dbGetAll(db, 'embeddings');
+      for (const e of allEmbeddings) embeddingsMap[e.slug] = e.vector;
+      showLoadedInfo(films.length, meta.lastLoaded);
+      document.getElementById('querySection').classList.remove('hidden');
+    }
+  }
+}
+
+function showLoadedInfo(count, timestamp) {
+  document.getElementById('loadedInfo').classList.remove('hidden');
+  document.getElementById('filmCount').textContent = count;
+  document.getElementById('lastLoaded').textContent = timestamp ? `Last loaded: ${new Date(timestamp).toLocaleDateString()}` : '';
+}
+
+async function syncWatchlist(username) {
+  const scraped = await scrapeWatchlist(username);
+  if (!scraped.length) throw new Error('No films found. Check the username and make sure the watchlist is public.');
+
+  const scrapedSlugs = new Set(scraped.map(f => f.slug));
+  const existingSlugs = new Set(films.map(f => f.slug));
+
+  // Remove films no longer on the watchlist
+  const removed = films.filter(f => !scrapedSlugs.has(f.slug));
+  if (removed.length) {
+    showProgress('<span class="loading-spinner"></span>Cleaning up removed films...', 0, `${removed.length} removed`);
+    for (const f of removed) {
+      await dbDelete(db, 'films', f.slug);
+      await dbDelete(db, 'embeddings', f.slug);
+      delete embeddingsMap[f.slug];
+    }
+  }
+
+  // Enrich new films
+  const newFilms = await enrichFilms(scraped, existingSlugs);
+
+  // Reload from DB (source of truth after adds/removes)
+  films = await dbGetAll(db, 'films');
+
+  // Build embeddings for any new films
+  showProgress('<span class="loading-spinner"></span>Building search index...', 0, '');
+  await buildEmbeddings(films);
+
+  await dbPut(db, 'meta', { key: 'session', username, lastLoaded: Date.now() });
+  hideProgress();
+
+  const summary = [];
+  if (newFilms.length) summary.push(`${newFilms.length} added`);
+  if (removed.length) summary.push(`${removed.length} removed`);
+
+  showLoadedInfo(films.length, Date.now());
+  document.getElementById('querySection').classList.remove('hidden');
+  return summary.length ? summary.join(', ') : null;
+}
+
+window.loadWatchlist = async () => {
+  const username = document.getElementById('usernameInput').value.trim();
+  if (!username) return;
+  clearError();
+  document.getElementById('loadBtn').disabled = true;
+
+  try {
+    const summary = await syncWatchlist(username);
+    if (summary) showInfo(`Watchlist synced: ${summary}`);
+  } catch (e) {
+    hideProgress();
+    showError(e.message);
+  } finally {
+    document.getElementById('loadBtn').disabled = false;
+  }
+};
+
+window.refreshWatchlist = async () => {
+  document.getElementById('resultsSection').classList.add('hidden');
+  window.loadWatchlist();
+};
+
+window.findFilms = async () => {
+  const query = document.getElementById('queryInput').value.trim();
+  if (!query) return;
+  clearError();
+  document.getElementById('findBtn').disabled = true;
+  document.getElementById('resultsSection').classList.add('hidden');
+
+  try {
+    const result = await recommend(query);
+
+    const metaParts = [];
+    const f = result.filters;
+    if (f.year_min || f.year_max) metaParts.push(`Years: ${f.year_min || '...'}-${f.year_max || '...'}`);
+    if (f.language) metaParts.push(`Language: ${f.language}`);
+    if (f.genres_include?.length) metaParts.push(`Genres: ${f.genres_include.join(', ')}`);
+    if (f.countries_include?.length) metaParts.push(`Countries: ${f.countries_include.join(', ')}`);
+    if (f.max_runtime) metaParts.push(`Max runtime: ${f.max_runtime} min`);
+
+    let metaHtml = '';
+    if (metaParts.length) metaHtml += `<strong>Filters:</strong> ${metaParts.join(' · ')}<br>`;
+    metaHtml += `Searched ${result.total} candidates (${result.sql_count} from filters, ${result.vector_count} from vibe matching)`;
+    document.getElementById('resultsMeta').innerHTML = metaHtml;
+
+    const cards = result.picks.length
+      ? result.picks.map((p, i) => renderFilmCard(p, i + 1)).join('')
+      : '<p style="color:var(--text2)">No matching films found in your watchlist. Try a different query.</p>';
+    document.getElementById('resultsCards').innerHTML = cards;
+    document.getElementById('resultsSection').classList.remove('hidden');
+  } catch (e) {
+    hideProgress();
+    showError(e.message);
+  } finally {
+    document.getElementById('findBtn').disabled = false;
+  }
+};
+
+window.useExample = (el) => {
+  document.getElementById('queryInput').value = el.textContent;
+};
+
+// Submit on Enter
+document.getElementById('queryInput')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); window.findFilms(); }
+});
+document.getElementById('usernameInput')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); window.loadWatchlist(); }
+});
+
+// ── Init ──
+db = await openDB();
+checkSetup();
+
+</script>
+</body>
+</html>
