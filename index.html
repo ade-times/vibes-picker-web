@@ -476,14 +476,11 @@ async function enrichFilms(scrapedFilms, existingSlugs) {
 
 // ── Embeddings ──
 
-async function getEmbeddingPipeline() {
-  if (!embeddingPipeline) {
-    showProgress('<span class="loading-spinner"></span>Loading embedding model (first time only)...', 0, 'This is cached after first load');
-    embeddingPipeline = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {
-      dtype: 'q8',
-    });
-  }
-  return embeddingPipeline;
+async function loadPipeline() {
+  showProgress('<span class="loading-spinner"></span>Loading embedding model (first time only)...', 0, 'This is cached after first load');
+  return await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {
+    dtype: 'q8',
+  });
 }
 
 async function buildEmbeddings(filmList) {
@@ -491,15 +488,14 @@ async function buildEmbeddings(filmList) {
   const existingSlugs = new Set(existingEmbeddings.map(e => e.slug));
   const needsEmbedding = filmList.filter(f => !existingSlugs.has(f.slug));
 
-  if (!needsEmbedding.length) {
-    // Load existing into memory
-    for (const e of existingEmbeddings) {
-      embeddingsMap[e.slug] = e.vector;
-    }
-    return;
+  // Always load existing into memory
+  for (const e of existingEmbeddings) {
+    embeddingsMap[e.slug] = e.vector;
   }
 
-  const pipe = await getEmbeddingPipeline();
+  if (!needsEmbedding.length) return;
+
+  const pipe = await loadPipeline();
 
   for (let i = 0; i < needsEmbedding.length; i++) {
     const f = needsEmbedding[i];
@@ -514,14 +510,12 @@ async function buildEmbeddings(filmList) {
     await dbPut(db, 'embeddings', { slug: f.slug, vector });
     embeddingsMap[f.slug] = vector;
 
-    // Yield to browser every 10 films to prevent mobile tab kills
-    if (i % 10 === 9) await new Promise(r => setTimeout(r, 100));
+    // Yield to browser after every film to keep mobile tabs alive
+    await new Promise(r => setTimeout(r, 50));
   }
 
-  // Load any pre-existing ones too
-  for (const e of existingEmbeddings) {
-    if (!embeddingsMap[e.slug]) embeddingsMap[e.slug] = e.vector;
-  }
+  // Free the model from memory after batch is done
+  embeddingPipeline = null;
 }
 
 function cosineSimilarity(a, b) {
@@ -535,8 +529,8 @@ function cosineSimilarity(a, b) {
 }
 
 async function vectorSearch(query, topK = 15) {
-  const pipe = await getEmbeddingPipeline();
-  const output = await pipe(query, { pooling: 'mean', normalize: true });
+  if (!embeddingPipeline) embeddingPipeline = await loadPipeline();
+  const output = await embeddingPipeline(query, { pooling: 'mean', normalize: true });
   const queryVec = Array.from(output.data);
 
   const scores = [];
