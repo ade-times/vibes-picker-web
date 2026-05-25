@@ -478,9 +478,9 @@ async function enrichFilms(scrapedFilms, existingSlugs) {
 
 async function getEmbeddingPipeline() {
   if (!embeddingPipeline) {
-    showProgress('<span class="loading-spinner"></span>Loading embedding model (first time ~30MB)...', 0, 'This is cached after first load');
+    showProgress('<span class="loading-spinner"></span>Loading embedding model (first time only)...', 0, 'This is cached after first load');
     embeddingPipeline = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {
-      dtype: 'fp32',
+      dtype: 'q8',
     });
   }
   return embeddingPipeline;
@@ -513,6 +513,9 @@ async function buildEmbeddings(filmList) {
     const vector = Array.from(output.data);
     await dbPut(db, 'embeddings', { slug: f.slug, vector });
     embeddingsMap[f.slug] = vector;
+
+    // Yield to browser every 10 films to prevent mobile tab kills
+    if (i % 10 === 9) await new Promise(r => setTimeout(r, 100));
   }
 
   // Load any pre-existing ones too
